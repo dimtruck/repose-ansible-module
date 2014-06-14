@@ -77,6 +77,12 @@
       apt: pkg=openjdk-7-jre state=latest update_cache=yes cache_valid_time=86400
     - name: Create config directory
       file: path=/etc/repose state=directory
+    - name: Templatize system-model
+      template: src=/opt/repose/template/system-model.j2 dest=/etc/repose/system-model.cfg.xml owner=repose group=repose mode=0644
+    - name: Templatize distributed-datastore
+      template: src=/opt/repose/template/dist-datastore.j2 dest=/etc/repose/dist-datastore.cfg.xml owner=repose group=repose mode=0644
+    - name: Copy configs over
+      copy: src=/opt/repose/staging dest=/etc/repose owner=repose group=repose mode=0644 directory_mode=yes
     - name: Start Repose
       local_action:
         module: repose
