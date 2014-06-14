@@ -1,0 +1,89 @@
+---
+- name: Boot a Rackspace instance
+  gather_facts: false
+  hosts: localhost
+  connection: local
+  tasks:
+    - name: Create load balancer
+      local_action:
+        module: rax_clb
+        credentials: ~/.raxpub
+        name: repose-ansible-lb
+        port: 80
+        protocol: HTTP
+        algorithm: ROUND_ROBIN
+        type: PUBLIC
+        timeout: 30
+        region: "{{ region }}"
+        wait: yes
+        state: present
+        meta:
+          app: repose-app
+      register: repose_clb
+
+    - name: Boot Rackspace servers; wait for them to come online
+      local_action:
+        module: rax
+        credentials: ~/.raxpub
+        state: present
+        name: "{{ server_name }}"
+        image: "{{ image }}"
+        flavor: "{{ flavor }}"
+        region: "{{ region }}"
+        wait: yes
+        disk_config: manual
+        networks:
+          - public
+          - private
+        count: "{{ server_count }}"
+        exact_count: yes
+        group: repose_web
+        wait: yes
+      register: repose_server
+
+    - name: Add server to hosts
+      local_action:
+        module: add_host
+        hostname: "{{ item.name }}"
+        ansible_ssh_host: "{{ item.rax_accessipv4 }}"
+        ansible_ssh_pass: "{{ item.rax_adminpass }}"
+        ansible_ssh_user: root
+        groupname: repose_web
+      with_items: repose_server.success
+      when: repose_server.action == 'create'
+
+    - name: Add servers to Load balancer
+      local_action:
+        module: rax_clb_nodes
+        credentials: ~/.raxpub
+        load_balancer_id: "{{ repose_clb.balancer.id }}"
+        address: "{{ item.accessIPv4 }}"
+        port: 80
+        condition: enabled
+        type: primary
+        wait: yes
+        region: "{{ region }}"
+      with_items: repose_server.success
+      when: repose_server.action == 'create'
+
+- name: Install Repose
+  hosts: repose_web
+  tasks:
+    - name: Install git
+      apt: pkg=git state=latest update_cache=yes cache_valid_time=86400
+    - name: Install maven
+      apt: pkg=maven state=latest update_cache=yes cache_valid_time=86400
+    - name: Install java
+      apt: pkg=openjdk-7-jre state=latest update_cache=yes cache_valid_time=86400
+    - name: Create config directory
+      file: path=/etc/repose state=directory
+    - name: Start Repose
+      local_action:
+        module: repose
+        state: present
+        release: {{ release }}
+        git_build: {{ is_git }}
+        git_repo: {{ git_repo }}
+        git_branch: {{ git_branch }}
+        wait: yes
+      register: repose_module

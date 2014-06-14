@@ -1,0 +1,42 @@
+---
+- name: Boot a Rackspace instance
+  gather_facts: false
+  hosts: localhost
+  connection: local
+  tasks:
+    - name: Delete load balancer
+      local_action:
+        module: rax_clb
+        credentials: ~/.raxpub
+        name: repose-ansible-lb
+        port: 80
+        protocol: HTTP
+        algorithm: ROUND_ROBIN
+        type: PUBLIC
+        timeout: 30
+        region: "{{ region }}"
+        wait: yes
+        state: absent
+        meta:
+          app: repose-app
+      register: repose_clb
+
+    - name: Delete Rackspace servers; wait for them to be removed
+      local_action:
+        module: rax
+        credentials: ~/.raxpub
+        state: absent
+        name: "{{ server_name }}"
+        image: "{{ image }}"
+        flavor: "{{ flavor }}"
+        region: "{{ region }}"
+        wait: yes
+        disk_config: manual
+        networks:
+          - public
+          - private
+        count: "{{ server_count }}"
+        exact_count: yes
+        group: repose_web
+        wait: yes
+      register: repose_server

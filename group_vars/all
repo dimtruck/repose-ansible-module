@@ -1,0 +1,10 @@
+---
+server_count: 2
+server_name: repose_test_server
+flavor: 4
+region: IAD
+image: 77e32de8-3304-44f3-b230-436d95fceb19
+release: no
+git_build: yes
+git_repo: https://github.com/rackerlabs/repose
+git_branch: master
